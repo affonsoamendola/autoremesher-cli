@@ -51,6 +51,7 @@ public:
 
     MainWindow();
     ~MainWindow();
+    bool parseCommandLine(int argc, char ** argv);
     PbrShaderWidget *modelRenderWidget() const;
     static size_t total();
 protected:
@@ -67,15 +68,21 @@ private slots:
     void updateTitle();
     void loadModel();
     void saveMesh();
+    void saveMesh_(bool use_out_name);
     bool loadObj(const QString &filename);
     void setCurrentFilename(const QString &filename);
     void checkRenderQueue();
     void renderMeshReady();
-    void generateQuadMesh();
+    void generateQuadMesh(bool command_line);
     void quadMeshReady();
+    void quadMeshReady_cli();
     void updateButtonStates();
     void updateProgress(float progress);
 private:
+    bool m_command_line = false;
+    bool m_verbose = true;
+    char m_in_filename[50];
+    char m_out_filename[50];
     PbrShaderWidget *m_modelRenderWidget = nullptr;
     AutoRemesher::AutoRemesher *m_autoRemesher = nullptr;
     bool m_inProgress = false;

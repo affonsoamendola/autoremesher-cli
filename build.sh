@@ -1,0 +1,1 @@
+make CC="gcc-6 -fno-lto -fext-numeric-literals -no-pie" LINK="g++-6 -no-pie -Lthirdparty/openvdb/openvdb-7.0.0/build/openvdb -L/usr/lib/gcc/x86_64-pc-linux-gnu/6.5.0/../../../../lib" CXX="g++-6 -fext-numeric-literals -no-pie" -j5

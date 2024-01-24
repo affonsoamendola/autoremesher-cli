@@ -34,8 +34,10 @@
 #include "version.h"
 #include "preferences.h"
 
+
 int main(int argc, char ** argv)
 {
+    bool command_line = false;
     QApplication app(argc, argv);
     
     GEO::initialize();
@@ -73,13 +75,18 @@ int main(int argc, char ** argv)
     Theme::initAwsomeBaseSizes();
     
     MainWindow *mainWindow = new MainWindow();
-    mainWindow->setAttribute(Qt::WA_DeleteOnClose);
-    QSize size = Preferences::instance().mainWindowSize();
-    if (size.isValid()) {
-        mainWindow->resize(size);
-        mainWindow->show();
-    } else {
-        mainWindow->showMaximized();
+    command_line = mainWindow->parseCommandLine(argc, argv);
+
+    if(command_line == false)
+    {
+        mainWindow->setAttribute(Qt::WA_DeleteOnClose);
+        QSize size = Preferences::instance().mainWindowSize();
+        if (size.isValid()) {
+            mainWindow->resize(size);
+            mainWindow->show();
+        } else {
+            mainWindow->showMaximized();
+        }
     }
     
     return app.exec();

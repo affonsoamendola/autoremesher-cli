@@ -19,6 +19,7 @@
  *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  *  SOFTWARE.
  */
+#include <iostream>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -57,6 +58,7 @@
 #include "spinnableawesomebutton.h"
 #include "logbrowser.h"
 #include "floatnumberwidget.h"
+#include "string.h"
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
@@ -76,6 +78,127 @@ void outputMessage(QtMsgType type, const QMessageLogContext &context, const QStr
 size_t MainWindow::total()
 {
     return g_windows.size();
+}
+
+bool file_exists(const char * filename)
+{
+    std::ifstream infile(filename);
+    return infile.good();
+}
+
+bool MainWindow::parseCommandLine(int argc, char ** argv)
+{
+    bool command_line = false;
+    bool no_output_name = true;
+
+
+
+    for(int i = 0; i < argc; i++)
+    {
+
+
+        if(strcmp(argv[i], "--in") == 0 || strcmp(argv[i], "-i") == 0)
+        {
+            if(argc > i+1)
+            {
+                if(file_exists(argv[i+1]))
+                {
+                    strcpy(m_in_filename, argv[i+1]);
+                    command_line = true;
+                }
+                else
+                {
+                    printf("ERROR: Couldnt find file: %s\n", argv[i+1]);
+                    command_line = false;
+                }
+
+            }
+            else
+            {
+                command_line = false;
+            }
+        }
+
+        if(strcmp(argv[i], "--out") == 0 || strcmp(argv[i], "-o") == 0)
+        {
+            if(argc > i+1)
+            {
+                strcpy(m_out_filename, argv[i+1]);
+                no_output_name = false;
+            }
+            else
+            {
+                command_line = false;
+            }
+        }
+
+        if(strcmp(argv[i], "--silent") == 0 || strcmp(argv[i], "-s") == 0)
+        {
+            m_verbose = false;
+        }
+
+        if(strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
+        {
+            printf("Usage: autoremesher [-i <in_file_name> | --in <in_file_name>] [-o <out_file_name> | --out <out_file_name>] [options]\n");
+            printf("All arguments are optional, in case of no arguments, will execute the GUI normally.\n");
+            printf("\n");
+            printf("Arguments\n");
+            printf("  -i <in_file_name>         Uses this file as input and disables\n");
+            printf("  --in <in_file_name>       the GUI\n");
+            printf("\n");
+            printf("  [-o] <out_file_name>      Uses this file as output, will not\n");
+            printf("  [--out] <out_file_name>   do anything without -i/--in, can be\n");
+            printf("                            omitted, in such case, will append\n");
+            printf("                            -quad to <in_file_name>\n");
+            printf("\n");
+            printf("  -s, --silent              Disables verbose output\n");
+            printf("\n");
+            printf("Autoremesher by Jeremy Hu (huxingyi): https://github.com/huxingyi/autoremesher\n");
+            printf("Conversion to CLI done by Almondtree Software: https://github.com/affonsoamendola\n");
+            exit(0);
+        }
+    }
+    
+    m_command_line = command_line;
+    if(command_line == false) return false;
+
+    if(no_output_name)
+    {
+        int i; 
+        for(i = 0; i < strlen(m_in_filename) - 4; i++)
+        {
+            m_out_filename[i] = m_in_filename[i];
+        }
+        strcpy(&m_out_filename[i], "-quad.obj");
+        if(m_verbose) printf("Out File = %s\n", m_out_filename);
+       // 
+    }
+
+    bool objLoaded = loadObj(m_in_filename);
+    if (objLoaded) {
+            setCurrentFilename(m_in_filename);
+            generateQuadMesh(m_command_line);
+    }
+    /*
+    QFile file(m_out_filename);
+    if (file.open(QIODevice::WriteOnly)) {
+        QTextStream stream(&file);
+        stream << "# " << APP_NAME << " " << APP_HUMAN_VER << endl;
+        stream << "# " << APP_HOMEPAGE_URL << endl;
+        for (std::vector<AutoRemesher::Vector3>::const_iterator it = m_remeshedVertices->begin() ; it != m_remeshedVertices->end(); ++it) {
+            stream << "v " << (*it).x() << " " << (*it).y() << " " << (*it).z() << endl;
+        }
+        for (std::vector<std::vector<size_t>>::const_iterator it = m_remeshedQuads->begin() ; it != m_remeshedQuads->end(); ++it) {
+            stream << "f";
+            for (std::vector<size_t>::const_iterator subIt = (*it).begin() ; subIt != (*it).end(); ++subIt) {
+                stream << " " << (1 + *subIt);
+            }
+            stream << endl;
+        }
+    }
+    */
+
+    return command_line;
 }
 
 MainWindow::MainWindow()
@@ -285,14 +408,14 @@ bool MainWindow::loadObj(const QString &filename)
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
     
-    qDebug() << "loadObj:" << filename;
+    if(m_verbose) printf("loadObj: %s\n", filename.toLatin1().data());
 
     bool loadSuccess = tinyobj::LoadObj(&attributes, &shapes, &materials, &warn, &err, filename.toUtf8().constData());
     if (!warn.empty()) {
-        qDebug() << "WARN:" << warn.c_str();
+        if(m_verbose) printf("WARN: %s\n", warn.c_str());
     }
     if (!err.empty()) {
-        qDebug() << err.c_str();
+        if(m_verbose) printf("ERROR: %s\n", err.c_str());
     }
     if (!loadSuccess) {
         return false;
@@ -317,15 +440,17 @@ bool MainWindow::loadObj(const QString &filename)
         }
     }
     
-    qDebug() << "m_originalVertices.size():" << m_originalVertices.size();
-    qDebug() << "m_originalTriangles.size():" << m_originalTriangles.size();
-    
-    m_renderQueue.push({
-        m_originalVertices,
-        m_originalTriangles
-    });
-    checkRenderQueue();
-    
+    if(m_verbose) printf("m_originalVertices.size(): %d\n", m_originalVertices.size());
+    if(m_verbose) printf("m_originalTriangles.size(): %d\n", m_originalTriangles.size());
+        
+    if(!m_command_line)
+    {
+        m_renderQueue.push({
+            m_originalVertices,
+            m_originalTriangles
+        });
+        checkRenderQueue();
+    }   
     return true;
 }
 
@@ -363,7 +488,7 @@ void MainWindow::loadModel()
     
     if (objLoaded) {
         setCurrentFilename(filename);
-        generateQuadMesh();
+        generateQuadMesh(m_command_line);
     }
 }
 
@@ -374,20 +499,27 @@ void MainWindow::setCurrentFilename(const QString &filename)
     updateTitle();
 }
 
-void MainWindow::saveMesh()
+void MainWindow::saveMesh_(bool use_out_name)
 {
     if (nullptr == m_remeshedVertices || nullptr == m_remeshedQuads)
         return;
     
-    QString filename = QFileDialog::getSaveFileName(this, QString(), QString(),
-       tr("Wavefront (*.obj)"));
-    if (filename.isEmpty()) {
-        return;
+    QString filename;
+    if(!use_out_name)
+    {
+        filename = QFileDialog::getSaveFileName(this, QString(), QString(),
+           tr("Wavefront (*.obj)"));
+        if (filename.isEmpty()) {
+            return;
+        }
+        
+        if (!filename.endsWith(".obj"))
+            filename += ".obj";
+    }else
+    {
+        filename = QString(m_out_filename);
     }
-    
-    if (!filename.endsWith(".obj"))
-        filename += ".obj";
-    
+
     QFile file(filename);
     if (file.open(QIODevice::WriteOnly)) {
         QTextStream stream(&file);
@@ -405,6 +537,42 @@ void MainWindow::saveMesh()
         }
     }
 }
+
+void MainWindow::saveMesh()
+{
+    if (nullptr == m_remeshedVertices || nullptr == m_remeshedQuads)
+        return;
+    
+    QString filename;
+
+    filename = QFileDialog::getSaveFileName(this, QString(), QString(),
+       tr("Wavefront (*.obj)"));
+    if (filename.isEmpty()) {
+        return;
+    }
+    
+    if (!filename.endsWith(".obj"))
+        filename += ".obj";
+    
+
+    QFile file(filename);
+    if (file.open(QIODevice::WriteOnly)) {
+        QTextStream stream(&file);
+        stream << "# " << APP_NAME << " " << APP_HUMAN_VER << endl;
+        stream << "# " << APP_HOMEPAGE_URL << endl;
+        for (std::vector<AutoRemesher::Vector3>::const_iterator it = m_remeshedVertices->begin() ; it != m_remeshedVertices->end(); ++it) {
+            stream << "v " << (*it).x() << " " << (*it).y() << " " << (*it).z() << endl;
+        }
+        for (std::vector<std::vector<size_t>>::const_iterator it = m_remeshedQuads->begin() ; it != m_remeshedQuads->end(); ++it) {
+            stream << "f";
+            for (std::vector<size_t>::const_iterator subIt = (*it).begin() ; subIt != (*it).end(); ++subIt) {
+                stream << " " << (1 + *subIt);
+            }
+            stream << endl;
+        }
+    }
+}
+
 
 void MainWindow::updateTitle()
 {
@@ -555,7 +723,7 @@ void MainWindow::checkRenderQueue()
     if (m_renderQueue.empty())
         return;
     
-    qDebug() << "Generate render mesh...";
+    if(m_verbose) printf("Generate render mesh...\n");
     
     QThread *thread = new QThread;
     
@@ -574,7 +742,7 @@ void MainWindow::renderMeshReady()
 {
     PbrShaderMesh *renderMesh = m_renderMeshGenerator->takeRenderMesh();
     
-    qDebug() << "Render mesh ready";
+    if(m_verbose) printf("Render mesh ready\n");
     
     delete m_renderMeshGenerator;
     m_renderMeshGenerator = nullptr;
@@ -584,12 +752,14 @@ void MainWindow::renderMeshReady()
     checkRenderQueue();
 }
 
-void MainWindow::generateQuadMesh()
+void MainWindow::generateQuadMesh(bool command_line)
 {
     if (nullptr != m_quadMeshGenerator) {
         m_quadMeshResultIsDirty = true;
         return;
     }
+
+    if(m_verbose) printf("Setting up quad mesh generator...\n");
     
     m_quadMeshResultIsDirty = false;
     m_saved = true;
@@ -610,17 +780,21 @@ void MainWindow::generateQuadMesh()
     parameters.modelType = m_modelType;
     
     m_quadMeshGenerator = new QuadMeshGenerator(m_originalVertices, m_originalTriangles);
-    connect(m_quadMeshGenerator, &QuadMeshGenerator::reportProgress, this, &MainWindow::updateProgress);
+
+    if(!command_line) connect(m_quadMeshGenerator, &QuadMeshGenerator::reportProgress, this, &MainWindow::updateProgress);
     m_quadMeshGenerator->setParameters(parameters);
     m_quadMeshGenerator->moveToThread(thread);
     connect(thread, &QThread::started, m_quadMeshGenerator, &QuadMeshGenerator::process);
-    connect(m_quadMeshGenerator, &QuadMeshGenerator::finished, this, &MainWindow::quadMeshReady);
+    if(!command_line) connect(m_quadMeshGenerator, &QuadMeshGenerator::finished, this, &MainWindow::quadMeshReady);
+    if(command_line) connect(m_quadMeshGenerator, &QuadMeshGenerator::finished, this, &MainWindow::quadMeshReady_cli);
     connect(m_quadMeshGenerator, &QuadMeshGenerator::finished, thread, &QThread::quit);
     connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     thread->start();
+
+    if(m_verbose) printf("Generating quad mesh...\n");
     
-    updateButtonStates();
-    updateTitle();
+    if(!command_line) updateButtonStates();
+    if(!command_line) updateTitle();
 }
 
 void MainWindow::quadMeshReady()
@@ -637,23 +811,28 @@ void MainWindow::quadMeshReady()
     delete m_quadMeshGenerator;
     m_quadMeshGenerator = nullptr;
     
-    if (nullptr != m_remeshedVertices && nullptr != m_remeshedQuads) {
-        m_renderQueue.push({
-            *m_remeshedVertices,
-            *m_remeshedQuads
-        });
-        checkRenderQueue();
-    } else {
-        m_renderQueue.push({
-            std::vector<AutoRemesher::Vector3>(),
-            std::vector<std::vector<size_t>>()
-        });
-        checkRenderQueue();
-    }
-    
     if (m_quadMeshResultIsDirty)
-        generateQuadMesh();
+        generateQuadMesh(m_command_line);
+}
+
+
+void MainWindow::quadMeshReady_cli()
+{
+    delete m_remeshedVertices;
+    m_remeshedVertices = m_quadMeshGenerator->takeRemeshedVertices();
     
-    updateButtonStates();
-    updateTitle();
+    delete m_remeshedQuads;
+    m_remeshedQuads = m_quadMeshGenerator->takeRemeshedQuads();
+    
+    m_saved = false;
+    m_inProgress = false;
+    
+    delete m_quadMeshGenerator;
+    m_quadMeshGenerator = nullptr;
+
+    if (m_quadMeshResultIsDirty)
+        generateQuadMesh(m_command_line);
+    
+    saveMesh_(true);
+    exit(0);
 }
