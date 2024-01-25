@@ -81,8 +81,8 @@ private slots:
 private:
     bool m_command_line = false;
     bool m_verbose = true;
-    char m_in_filename[50];
-    char m_out_filename[50];
+    char m_in_filename[4096];
+    char m_out_filename[4096];
     PbrShaderWidget *m_modelRenderWidget = nullptr;
     AutoRemesher::AutoRemesher *m_autoRemesher = nullptr;
     bool m_inProgress = false;

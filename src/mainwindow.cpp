@@ -91,12 +91,8 @@ bool MainWindow::parseCommandLine(int argc, char ** argv)
     bool command_line = false;
     bool no_output_name = true;
 
-
-
     for(int i = 0; i < argc; i++)
     {
-
-
         if(strcmp(argv[i], "--in") == 0 || strcmp(argv[i], "-i") == 0)
         {
             if(argc > i+1)
@@ -109,13 +105,8 @@ bool MainWindow::parseCommandLine(int argc, char ** argv)
                 else
                 {
                     printf("ERROR: Couldnt find file: %s\n", argv[i+1]);
-                    command_line = false;
+                    exit(-1);
                 }
-
-            }
-            else
-            {
-                command_line = false;
             }
         }
 
@@ -125,10 +116,6 @@ bool MainWindow::parseCommandLine(int argc, char ** argv)
             {
                 strcpy(m_out_filename, argv[i+1]);
                 no_output_name = false;
-            }
-            else
-            {
-                command_line = false;
             }
         }
 
@@ -780,21 +767,21 @@ void MainWindow::generateQuadMesh(bool command_line)
     parameters.modelType = m_modelType;
     
     m_quadMeshGenerator = new QuadMeshGenerator(m_originalVertices, m_originalTriangles);
-
-    if(!command_line) connect(m_quadMeshGenerator, &QuadMeshGenerator::reportProgress, this, &MainWindow::updateProgress);
+    printf("%s", m_command_line ? "true" : "false");
+    if(!m_command_line) connect(m_quadMeshGenerator, &QuadMeshGenerator::reportProgress, this, &MainWindow::updateProgress);
     m_quadMeshGenerator->setParameters(parameters);
     m_quadMeshGenerator->moveToThread(thread);
     connect(thread, &QThread::started, m_quadMeshGenerator, &QuadMeshGenerator::process);
-    if(!command_line) connect(m_quadMeshGenerator, &QuadMeshGenerator::finished, this, &MainWindow::quadMeshReady);
-    if(command_line) connect(m_quadMeshGenerator, &QuadMeshGenerator::finished, this, &MainWindow::quadMeshReady_cli);
+    if(!m_command_line) connect(m_quadMeshGenerator, &QuadMeshGenerator::finished, this, &MainWindow::quadMeshReady);
+    if(m_command_line) connect(m_quadMeshGenerator, &QuadMeshGenerator::finished, this, &MainWindow::quadMeshReady_cli);
     connect(m_quadMeshGenerator, &QuadMeshGenerator::finished, thread, &QThread::quit);
     connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     thread->start();
 
     if(m_verbose) printf("Generating quad mesh...\n");
     
-    if(!command_line) updateButtonStates();
-    if(!command_line) updateTitle();
+    if(!m_command_line) updateButtonStates();
+    if(!m_command_line) updateTitle();
 }
 
 void MainWindow::quadMeshReady()
@@ -811,8 +798,25 @@ void MainWindow::quadMeshReady()
     delete m_quadMeshGenerator;
     m_quadMeshGenerator = nullptr;
     
+    if (nullptr != m_remeshedVertices && nullptr != m_remeshedQuads) {
+        m_renderQueue.push({
+            *m_remeshedVertices,
+            *m_remeshedQuads
+        });
+        checkRenderQueue();
+    } else {
+        m_renderQueue.push({
+            std::vector<AutoRemesher::Vector3>(),
+            std::vector<std::vector<size_t>>()
+        });
+        checkRenderQueue();
+    }
+    
     if (m_quadMeshResultIsDirty)
         generateQuadMesh(m_command_line);
+    
+    updateButtonStates();
+    updateTitle();
 }
 
 
